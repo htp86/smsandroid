@@ -1,0 +1,111 @@
+# Translation file - SMS Android Module
+#
+# Module
+#
+ModuleSmsandroidName = SMS Android
+ModuleSmsandroidDesc = Send SMS via an Android phone as a local gateway
+ModuleSmsandroidDescLong = This module allows sending SMS directly from Dolibarr using an Android application as a relay. Ideal for environments without a professional SMS subscription.
+
+#
+# Admin / Setup page
+#
+SmsandroidSetup = SMS Android Setup
+Settings = Settings
+SmsandroidSetupPage = SMS Android setup page
+
+# --- API Connection ---
+SMSANDROID_API_URL = Android API URL
+SMSANDROID_API_URLTooltip = Full address (e.g. http://192.168.2.209:8080)
+
+SMSANDROID_API_USER = API User
+SMSANDROID_API_USERTooltip = Username for Basic authentication (e.g. sms)
+
+SMSANDROID_API_PASS = API Password
+SMSANDROID_API_PASSTooltip = Password for Basic authentication
+
+# --- Behavior ---
+SMSANDROID_PHONE_FORMAT = Phone number format
+SMSANDROID_PHONE_FORMATTooltip = Send format: International (+33...) or National (06...)
+
+SMSANDROID_LOG_LEVEL = Log level
+SMSANDROID_LOG_LEVELTooltip = 0=None, 1=Errors only, 2=Info (Sends + Errors), 3=Full debug (API JSON)
+
+SMSANDROID_SHOW_LOGS = Show history
+SMSANDROID_SHOW_LOGSTooltip = Displays the "History" tab on the module home page
+
+# --- Templates ---
+SMSANDROID_TEMPLATE_1 = Message template 1
+SMSANDROID_TEMPLATE_1Tooltip = First preset message (dropdown)
+
+SMSANDROID_TEMPLATE_2 = Message template 2
+SMSANDROID_TEMPLATE_2Tooltip = Second preset message
+
+SMSANDROID_TEMPLATE_3 = Message template 3
+SMSANDROID_TEMPLATE_3Tooltip = Third preset message
+
+#
+# About page
+#
+About = About
+SmsandroidAbout = About SMS Android
+SmsandroidAboutPage = Information about the SMS Android module
+
+#
+# Configuration sections
+#
+NewSectionBehavior = Behavior & Logs
+NewSectionTemplates = Message Templates
+NewSectionQuickHistory = Quick History
+NewSectionTest = Connection Test
+
+#
+# Settings
+#
+SMSANDROID_QUICK_HISTORY = SMS count in quick history
+SMSANDROID_QUICK_HISTORYTooltip = Number of sends displayed on the module home page (1 to 100)
+
+#
+# Status & Error messages
+#
+SmsandroidSentSuccess = SMS sent successfully
+SmsandroidSentPending = Message sent to API, awaiting delivery (no SIM?)
+SmsandroidErrorApiUrl = API URL not configured
+SmsandroidErrorApiToken = Missing API credentials
+SmsandroidErrorNoPhone = Missing phone number
+SmsandroidErrorNoMessage = Empty SMS message
+SmsandroidErrorNoSim = No SIM card detected in the Android phone. Please insert an active SIM card and try again.
+SmsandroidErrorConnection = Unable to reach the Android API
+SmsandroidErrorInvalidResponse = Invalid API response (JSON)
+SmsandroidErrorApiPrefix = API error
+SmsandroidErrorSendFailed = Send failed
+SmsandroidErrorUnknownState = Unexpected API state
+SmsandroidErrorIncompleteConfig = Incomplete configuration
+
+#
+# Tests
+#
+SMSANDROID_TEST_API = Live test
+SmsandroidTestButton = Test API connection
+SmsandroidTestRunning = Test in progress...
+SmsandroidTestSuccess = Authentication OK
+SmsandroidTestHttpError = HTTP error
+
+#
+# API Message Management
+#
+SmsandroidApiMessages = Android API Messages
+SmsandroidApiMessagesDesc = Messages stored on the Android phone (via API)
+SmsandroidApiNoMessages = No messages on the API
+SmsandroidApiDelete = Delete
+SmsandroidApiDeleteConfirm = Delete this message permanently?
+SmsandroidApiDeleteAllFailed = Delete all failed
+SmsandroidApiDeleteAllFailedConfirm = Delete all failed messages?
+SmsandroidApiMsgId = ID
+SmsandroidApiMsgDate = Date
+SmsandroidApiMsgTo = Recipient
+SmsandroidApiMsgText = Message
+SmsandroidApiMsgState = State
+SmsandroidApiDeleted = Message deleted
+SmsandroidApiDeleteFailed = Delete failed
+SmsandroidApiDeleteAllOk = All failed messages deleted
+

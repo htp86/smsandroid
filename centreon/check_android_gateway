@@ -1,0 +1,318 @@
+#!/bin/bash
+#========================================================================
+# check_android_gateway - Nagios plugin for capcom6/android-sms-gateway
+# Version: 1.0.0
+# Description: Monitor Android SMS Gateway via REST API
+# Supports: health, messages modes
+#
+# Usage:
+#   check_android_gateway --mode=health -H <host> -p <port> -a <auth>
+#   check_android_gateway --mode=messages -H <host> -p <port> -a <auth>
+#
+# Examples:
+#   check_android_gateway --mode=health -H 192.168.2.209 -p 8080 -a sms:xxhtphtpxx
+#   check_android_gateway --mode=messages -H 192.168.2.209 -p 8080 -a sms:xxhtphtpxx
+#========================================================================
+
+VERSION="1.0.0"
+STATE_OK=0
+STATE_WARNING=1
+STATE_CRITICAL=2
+STATE_UNKNOWN=3
+
+# Defaults
+HOST=""
+PORT="8080"
+AUTH=""
+MODE="health"
+WARN_BATTERY=20
+CRIT_BATTERY=10
+WARN_FAILED=1
+CRIT_FAILED=5
+WARN_CELLULAR=2
+CRIT_CELLULAR=2
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --mode=*)
+            MODE="${1#*=}"
+            ;;
+        -H|--host)
+            HOST="$2"
+            shift
+            ;;
+        -p|--port)
+            PORT="$2"
+            shift
+            ;;
+        -a|--auth)
+            AUTH="$2"
+            shift
+            ;;
+        --warning-battery=*)
+            WARN_BATTERY="${1#*=}"
+            ;;
+        --critical-battery=*)
+            CRIT_BATTERY="${1#*=}"
+            ;;
+        --warning-failed=*)
+            WARN_FAILED="${1#*=}"
+            ;;
+        --critical-failed=*)
+            CRIT_FAILED="${1#*=}"
+            ;;
+        --warning-cellular=*)
+            WARN_CELLULAR="${1#*=}"
+            ;;
+        --critical-cellular=*)
+            CRIT_CELLULAR="${1#*=}"
+            ;;
+        --help|-h)
+            echo "check_android_gateway v$VERSION"
+            echo "Usage: $0 --mode=MODE -H HOST -p PORT -a AUTH [options]"
+            echo ""
+            echo "Modes:"
+            echo "  health    - Battery, cellular, internet, failed messages"
+            echo "  messages  - SMS statistics (total, delivered, failed, pending)"
+            echo "  all       - Everything above"
+            echo ""
+            echo "Options:"
+            echo "  -H, --host             Android phone IP"
+            echo "  -p, --port             API port (default: 8080)"
+            echo "  -a, --auth             Basic auth user:password"
+            echo "  --warning-battery=N    Battery warning threshold (default: 20)"
+            echo "  --critical-battery=N   Battery critical threshold (default: 10)"
+            echo "  --warning-failed=N     Failed msgs warning (default: 1)"
+            echo "  --critical-failed=N    Failed msgs critical (default: 5)"
+            echo "  --warning-cellular=N   Cellular type warn min (default: 2)"
+            echo "  --critical-cellular=N  Cellular type crit min (default: 2)"
+            exit $STATE_UNKNOWN
+            ;;
+        *)
+            echo "UNKNOWN - Unknown option: $1"
+            exit $STATE_UNKNOWN
+            ;;
+    esac
+    shift
+done
+
+# Validate required params
+if [ -z "$HOST" ] || [ -z "$AUTH" ]; then
+    echo "UNKNOWN - Missing required parameters: --host and --auth"
+    exit $STATE_UNKNOWN
+fi
+
+BASE_URL="http://${HOST}:${PORT}"
+CURL_OPTS="-s --noproxy '*' --connect-timeout 5 --max-time 10"
+
+#========================================================================
+# Mode: health
+#========================================================================
+do_health() {
+    local json
+    json=$(curl $CURL_OPTS -u "$AUTH" "${BASE_URL}/health" 2>&1)
+    local curl_exit=$?
+
+    if [ $curl_exit -ne 0 ] || [ -z "$json" ]; then
+        echo "CRITICAL - Cannot connect to ${BASE_URL}/health (curl exit: $curl_exit)"
+        exit $STATE_CRITICAL
+    fi
+
+    if ! echo "$json" | python -c "import json; json.loads('''$json''')" 2>/dev/null; then
+        # Fallback: parse with grep
+        if ! echo "$json" | grep -q "checks"; then
+            echo "CRITICAL - Invalid JSON response from API"
+            exit $STATE_CRITICAL
+        fi
+    fi
+
+    # Extract values with grep (Python 2 compatible, no f-strings)
+    local battery charging cellular internet failed overall_status
+
+    battery=$(echo "$json" | grep -o '"battery:level"[^}]*' | grep -o '"observedValue":[0-9]*' | cut -d: -f2)
+    charging=$(echo "$json" | grep -o '"battery:charging"[^}]*' | grep -o '"observedValue":[0-9]*' | cut -d: -f2)
+    cellular=$(echo "$json" | grep -o '"connection:cellular"[^}]*' | grep -o '"observedValue":[0-9]*' | cut -d: -f2)
+    internet=$(echo "$json" | grep -o '"connection:status"[^}]*' | grep -o '"observedValue":[0-9]*' | cut -d: -f2)
+    failed=$(echo "$json" | grep -o '"messages:failed"[^}]*' | grep -o '"observedValue":[0-9]*' | cut -d: -f2)
+
+    [ -z "$battery" ] && battery=-1
+    [ -z "$charging" ] && charging=-1
+    [ -z "$cellular" ] && cellular=-1
+    [ -z "$internet" ] && internet=-1
+    [ -z "$failed" ] && failed=-1
+
+    # Cellular type labels
+    local cellular_label
+    case "$cellular" in
+        0) cellular_label="None" ;;
+        1) cellular_label="Unknown" ;;
+        2) cellular_label="2G" ;;
+        3) cellular_label="3G" ;;
+        4) cellular_label="4G" ;;
+        5) cellular_label="5G" ;;
+        *) cellular_label="N/A" ;;
+    esac
+
+    # Build status text
+    local status_text="Battery: ${battery}% | Charging: $( [ "$charging" = "1" ] && echo Yes || echo No ) | Cellular: ${cellular_label} | Internet: $( [ "$internet" = "1" ] && echo Yes || echo No ) | Failed(1h): ${failed}"
+
+    local overall_status=$STATE_OK
+    local status_label="OK"
+
+    # Check thresholds
+    if [ "$battery" -ge 0 ] && [ "$battery" -le "$CRIT_BATTERY" ] 2>/dev/null; then
+        overall_status=$STATE_CRITICAL
+    elif [ "$battery" -ge 0 ] && [ "$battery" -le "$WARN_BATTERY" ] 2>/dev/null; then
+        [ $overall_status -lt $STATE_WARNING ] && overall_status=$STATE_WARNING
+    fi
+
+    if [ "$cellular" -eq 0 ] 2>/dev/null; then
+        overall_status=$STATE_CRITICAL
+        status_text="$status_text (No cellular service!)"
+    elif [ "$cellular" -gt 0 ] && [ "$cellular" -lt "$CRIT_CELLULAR" ] 2>/dev/null; then
+        overall_status=$STATE_CRITICAL
+    elif [ "$cellular" -gt 0 ] && [ "$cellular" -lt "$WARN_CELLULAR" ] 2>/dev/null; then
+        [ $overall_status -lt $STATE_WARNING ] && overall_status=$STATE_WARNING
+    fi
+
+    if [ "$failed" -ge 0 ] && [ "$failed" -ge "$CRIT_FAILED" ] 2>/dev/null; then
+        overall_status=$STATE_CRITICAL
+    elif [ "$failed" -ge 0 ] && [ "$failed" -ge "$WARN_FAILED" ] 2>/dev/null; then
+        [ $overall_status -lt $STATE_WARNING ] && overall_status=$STATE_WARNING
+    fi
+
+    case $overall_status in
+        0) status_label="OK" ;;
+        1) status_label="WARNING" ;;
+        2) status_label="CRITICAL" ;;
+        *) status_label="UNKNOWN" ;;
+    esac
+
+    # Perfdata
+    local perfdata="'battery'=${battery}%;${WARN_BATTERY}:;${CRIT_BATTERY}:;0;100 'charging'=${charging};;;0;1 'cellular'=${cellular};${WARN_CELLULAR}:;${CRIT_CELLULAR}:;0;5 'internet'=${internet};;;0;1 'failed_1h'=${failed};${WARN_FAILED};${CRIT_FAILED};0;"
+
+    echo "${status_label} - ${status_text} | ${perfdata}"
+    exit $overall_status
+}
+
+#========================================================================
+# Mode: messages
+#========================================================================
+do_messages() {
+    local json
+    json=$(curl $CURL_OPTS -u "$AUTH" "${BASE_URL}/message" 2>&1)
+    local curl_exit=$?
+
+    if [ $curl_exit -ne 0 ] || [ -z "$json" ]; then
+        echo "CRITICAL - Cannot connect to ${BASE_URL}/message (curl exit: $curl_exit)"
+        exit $STATE_CRITICAL
+    fi
+
+    # Parse with Python 2
+    local stats
+    stats=$(echo "$json" | python -c "
+import json, sys
+try:
+    msgs = json.load(sys.stdin)
+except:
+    print 'PARSE_ERROR'
+    sys.exit(1)
+total = len(msgs)
+states = {}
+for m in msgs:
+    s = m.get('state', 'unknown')
+    states[s] = states.get(s, 0) + 1
+delivered = states.get('Delivered', 0)
+failed = states.get('Failed', 0)
+pending = states.get('Pending', 0)
+sent = states.get('Sent', 0)
+processed = states.get('Processed', 0)
+print '%d|%d|%d|%d|%d|%d' % (total, delivered, failed, pending, sent, processed)
+" 2>&1)
+
+    local parse_exit=$?
+
+    if [ "$stats" = "PARSE_ERROR" ] || [ $parse_exit -ne 0 ]; then
+        echo "CRITICAL - Failed to parse messages JSON"
+        exit $STATE_CRITICAL
+    fi
+
+    IFS='|' read -r total delivered failed pending sent processed <<< "$stats"
+
+    [ -z "$total" ] && total=0
+    [ -z "$delivered" ] && delivered=0
+    [ -z "$failed" ] && failed=0
+    [ -z "$pending" ] && pending=0
+    [ -z "$sent" ] && sent=0
+    [ -z "$processed" ] && processed=0
+
+    local overall_status=$STATE_OK
+    local status_label="OK"
+
+    if [ "$failed" -ge "$CRIT_FAILED" ] 2>/dev/null; then
+        overall_status=$STATE_CRITICAL
+    elif [ "$failed" -ge "$WARN_FAILED" ] 2>/dev/null; then
+        overall_status=$STATE_WARNING
+    fi
+
+    case $overall_status in
+        0) status_label="OK" ;;
+        1) status_label="WARNING" ;;
+        2) status_label="CRITICAL" ;;
+        *) status_label="UNKNOWN" ;;
+    esac
+
+    local status_text="Messages: ${total} total, ${delivered} delivered, ${failed} failed, ${pending} pending"
+    local perfdata="'total'=${total};;;0; 'delivered'=${delivered};;;0; 'failed'=${failed};${WARN_FAILED};${CRIT_FAILED};0; 'pending'=${pending};;;0; 'sent'=${sent};;;0; 'processed'=${processed};;;0;"
+
+    echo "${status_label} - ${status_text} | ${perfdata}"
+    exit $overall_status
+}
+
+#========================================================================
+# Mode: all
+#========================================================================
+do_all() {
+    local health_output health_status
+    health_output=$(do_health 2>&1)
+    health_status=$?
+
+    local msg_output msg_status
+    msg_output=$(do_messages 2>&1)
+    msg_status=$?
+
+    # Worst status wins
+    local final_status=$health_status
+    [ $msg_status -gt $final_status ] && final_status=$msg_status
+
+    local status_label
+    case $final_status in
+        0) status_label="OK" ;;
+        1) status_label="WARNING" ;;
+        2) status_label="CRITICAL" ;;
+        *) status_label="UNKNOWN" ;;
+    esac
+
+    # Extract perfdata from both outputs
+    local health_perfdata="${health_output#*| }"
+    local msg_perfdata="${msg_output#*| }"
+    [ "$health_perfdata" = "$health_output" ] && health_perfdata=""
+    [ "$msg_perfdata" = "$msg_output" ] && msg_perfdata=""
+
+    echo "${status_label} - Health + Messages OK | ${health_perfdata} ${msg_perfdata}"
+    exit $final_status
+}
+
+#========================================================================
+# Main dispatch
+#========================================================================
+case "$MODE" in
+    health)   do_health ;;
+    messages) do_messages ;;
+    all)      do_all ;;
+    *)
+        echo "UNKNOWN - Unknown mode: $MODE (use health, messages, or all)"
+        exit $STATE_UNKNOWN
+        ;;
+esac
