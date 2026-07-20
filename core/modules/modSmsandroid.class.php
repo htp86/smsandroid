@@ -12,9 +12,9 @@ class modSmsandroid extends DolibarrModules
         global $conf, $langs;
         $this->db = $db;
 
-        $this->numero = 491805;
+        $this->numero = 500503;
         $this->rights_class = 'smsandroid';
-        $this->family = "htp";
+        $this->family = "htpmultimedia";
         $this->module_position = '90';
         $this->name = preg_replace('/^mod/i', '', get_class($this));
         $this->description = "ModuleSmsandroidDesc";

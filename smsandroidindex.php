@@ -153,10 +153,9 @@ print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" id="smsForm">';
 print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<table class="border centpercent">';
 
-// Ligne 1: Selection Tiers (AJAX = plus rapide avec bcp de tiers)
+// Ligne 1: Selection Tiers
 print '<tr><td class="fieldrequired">Tiers</td><td>';
-$conf->global->COMPANY_USE_SEARCH_TO_SELECT = 1;
-print $form->select_company('', 'fk_soc', '', 1, 0, 1, array(), 20, 'minwidth300');
+print $form->select_company('', 'fk_soc', '', 1, 0, '', 0, 0, 'minwidth300');
 print ' <span id="phone-status" style="margin-left:10px;font-weight:bold;"></span>';
 print '</td></tr>';
 
