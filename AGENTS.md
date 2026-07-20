@@ -9,6 +9,7 @@
 - **PC utilisateur :** `192.168.2.198`
 
 ## API SMS Gateway (capcom6/android-sms-gateway)
+- **Family :** `htpmultimedia` | **Numéro :** `500503`
 - **URL :** `http://192.168.2.209:8080/`
 - **Auth :** Basic Auth, user=`sms`, password=`xxhtphtpxx`
 - **Version :** v1.63.0
